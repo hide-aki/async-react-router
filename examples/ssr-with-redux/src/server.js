@@ -1,18 +1,26 @@
 import ejs from "ejs";
 import path from "path";
 import React from "react";
-import { RouteResolver } from "async-react-router/ssr";
+import { createServerRouter } from "async-react-router/ssr";
 import ReactDOMServer from "react-dom/server";
 import compress from "compression";
 import http from "http";
 import express from "express";
+import morgan from "morgan";
 
 const port = 3000;
 
 const app = express();
 const server = http.createServer(app);
 
-app.use(compress());
+app.use(
+  compress({
+    filter: function() {
+      return true;
+    }
+  })
+);
+app.use(morgan("combined"));
 
 let outputFileSystem = null;
 let viewFile = "";
@@ -41,11 +49,10 @@ if (process.env.NODE_ENV === "production") {
   app.use(webpackDevMiddlewareInstance);
 
   webpackDevMiddlewareInstance.waitUntilValid(function() {
-    console.log("Development Server is in a valid state");
+    const openBrowser = require("react-dev-utils/openBrowser");
 
-    // opens the url in the default browser
-    const opn = require("opn");
-    opn("http://localhost:" + port);
+    const url = "http://localhost:" + port;
+    openBrowser(url);
   });
 
   // Step 3: Attach the hot middleware to the compiler & the server
@@ -55,7 +62,7 @@ if (process.env.NODE_ENV === "production") {
     })
   );
 
-  const watcher = chokidar.watch("./app", { ignored: `/node_modules/` });
+  const watcher = chokidar.watch(path.resolve(__dirname, "./app"));
   watcher.on("all", function() {
     Object.keys(require.cache).forEach(function(id) {
       if (/[\/\\]src[\/\\]/.test(id)) {
@@ -72,17 +79,16 @@ if (process.env.NODE_ENV === "production") {
 
 app.use("/static", express.static(path.join(__dirname, "static")));
 
-app.get("/favicon.ico", function(req, res) {
-  // favicon
-});
-
 app.get("*", function(req, res) {
-  const routes = require("./app/routes").default;
-  RouteResolver.make(routes).resolve(req.url, (component, data) => {
+  const setRoute = require("./app/routes").default;
+  const serverRouter = createServerRouter();
+  setRoute(serverRouter);
+
+  serverRouter.runUsingPathname(req.url, (Root, data) => {
     outputFileSystem.readFile(viewFile, function(err, result) {
       const compiled = ejs.compile(result.toString("utf8"), "utf8");
       const html = compiled({
-        component: ReactDOMServer.renderToString(component),
+        component: ReactDOMServer.renderToString(<Root />),
         data: data
       });
 

@@ -1,24 +1,10 @@
 {
   "presets": [
-    "es2015",
+    "env",
     "react"
   ],
-  "env": {
-    "production": {
-      "presets": [
-        [
-          "babili", {
-            "mangle": false
-          }
-        ]
-      ],
-      "plugins": [
-        [
-          "transform-define", {
-          "process.env.NODE_ENV": "production"
-        }
-        ]
-      ]
-    }
-  }
+  "plugins": [
+    "transform-runtime",
+    "dynamic-import-node"
+  ]
 }
